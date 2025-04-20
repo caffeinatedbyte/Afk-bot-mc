@@ -31,18 +31,18 @@ function createBot () {
   bot.loadPlugin(armorManager);
   bot.loadPlugin(pathfinder);
 
+  // Equip sword
   bot.on('playerCollect', (collector, itemDrop) => {
     if (collector !== bot.entity) return;
-
     setTimeout(() => {
       const sword = bot.inventory.items().find(item => item.name.includes('sword'));
       if (sword) bot.equip(sword, 'hand');
     }, 150);
   });
 
+  // Equip shield
   bot.on('playerCollect', (collector, itemDrop) => {
     if (collector !== bot.entity) return;
-
     setTimeout(() => {
       const shield = bot.inventory.items().find(item => item.name.includes('shield'));
       if (shield) bot.equip(shield, 'off-hand');
@@ -50,8 +50,13 @@ function createBot () {
   });
 
   let guardPos = null;
+  let patrolling = true;
+  let pointA = null;
+  let pointB = null;
+  let goingToA = false;
 
   function guardArea (pos) {
+    stopPatrol(); // Stop patrolling when guarding
     guardPos = pos.clone();
     if (!bot.pvp.target) moveToGuardPos();
   }
@@ -60,12 +65,46 @@ function createBot () {
     guardPos = null;
     bot.pvp.stop();
     bot.pathfinder.setGoal(null);
+    startPatrol(pointA, pointB); // Resume patrol
   }
 
   function moveToGuardPos () {
     const mcData = require('minecraft-data')(bot.version);
     bot.pathfinder.setMovements(new Movements(bot, mcData));
     bot.pathfinder.setGoal(new goals.GoalBlock(guardPos.x, guardPos.y, guardPos.z));
+  }
+
+  function startPatrol(pos1, pos2) {
+    if (!pos1 || !pos2) return;
+    pointA = pos1.clone();
+    pointB = pos2.clone();
+    patrolling = true;
+    patrol();
+  }
+
+  function stopPatrol() {
+    patrolling = false;
+    bot.pathfinder.setGoal(null);
+  }
+
+  function patrol() {
+    if (!patrolling || !pointA || !pointB) return;
+    const destination = goingToA ? pointA : pointB;
+    goingToA = !goingToA;
+
+    const mcData = require('minecraft-data')(bot.version);
+    const movements = new Movements(bot, mcData);
+    bot.pathfinder.setMovements(movements);
+    bot.pathfinder.setGoal(new goals.GoalBlock(destination.x, destination.y, destination.z));
+
+    const checkArrival = setInterval(() => {
+      if (!bot.pathfinder.isMoving()) {
+        clearInterval(checkArrival);
+        setTimeout(() => {
+          if (patrolling) patrol();
+        }, 1000);
+      }
+    }, 500);
   }
 
   bot.on('stoppedAttacking', () => {
@@ -102,6 +141,7 @@ function createBot () {
     }
 
     if (message === 'follow me') {
+      stopPatrol();
       const mcData = require('minecraft-data')(bot.version);
       const movements = new Movements(bot, mcData);
       bot.pathfinder.setMovements(movements);
@@ -110,9 +150,16 @@ function createBot () {
     }
 
     if (message === 'stay') {
+      stopPatrol();
       bot.chat("Okay, I'll stay here.");
       bot.pathfinder.setGoal(null);
     }
+  });
+
+  bot.once('spawn', () => {
+    const pos1 = bot.entity.position.offset(3, 0, 0);
+    const pos2 = bot.entity.position.offset(-3, 0, 0);
+    startPatrol(pos1, pos2);
   });
 
   bot.on('kicked', console.log);
@@ -121,7 +168,3 @@ function createBot () {
 }
 
 createBot();
-
-// Remember to subscribe to my channels!
-// www.youtube.com/c/D
-// www.youtube.com/channel/UC1SR0lQSDfdaSMhmUiaMitg
