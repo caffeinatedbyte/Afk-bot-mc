@@ -1,170 +1,175 @@
 const express = require("express");
 const http = require("http");
-const mineflayer = require('mineflayer');
-const pvp = require('mineflayer-pvp').plugin;
-const { pathfinder, Movements, goals } = require('mineflayer-pathfinder');
-const armorManager = require('mineflayer-armor-manager');
-const AutoAuth = require('mineflayer-auto-auth');
+const mineflayer = require("mineflayer");
+const pvp = require("mineflayer-pvp").plugin;
+const { pathfinder, Movements, goals } = require("mineflayer-pathfinder");
+const armorManager = require("mineflayer-armor-manager");
+const AutoAuth = require("mineflayer-auto-auth");
 const app = express();
 
 app.use(express.json());
 
+// Serve a basic homepage
 app.get("/", (_, res) => res.sendFile(__dirname + "/index.html"));
-app.listen(process.env.PORT);
 
+// Start express server
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Web server running.");
+});
+
+// Ping self to prevent sleeping on Replit
 setInterval(() => {
-  http.get(`http://${process.env.PROJECT_DOMAIN}.repl.co/`);
+  if (process.env.PROJECT_DOMAIN) {
+    http.get(`http://${process.env.PROJECT_DOMAIN}.repl.co/`);
+  }
 }, 224000);
 
-// YOU CAN ONLY EDIT THIS SECTION!!
-function createBot () {
+// ===========================
+// BOT CREATION STARTS HERE!!
+// ===========================
+function createBot() {
   const bot = mineflayer.createBot({
-    host: 'billismp.falixsrv.me',
+    host: "billismp.falixsrv.me",
     port: 13246,
-    username: 'sanx',
-    version: false, // e.g. '1.16.5' if needed
+    username: "sanx",
+    version: false, // Automatically detects version
     plugins: [AutoAuth],
-    AutoAuth: 'sanx'
+    AutoAuth: "sanx",
   });
 
+  // Load Plugins
   bot.loadPlugin(pvp);
   bot.loadPlugin(armorManager);
   bot.loadPlugin(pathfinder);
 
-  // Equip sword
-  bot.on('playerCollect', (collector, itemDrop) => {
-    if (collector !== bot.entity) return;
-    setTimeout(() => {
-      const sword = bot.inventory.items().find(item => item.name.includes('sword'));
-      if (sword) bot.equip(sword, 'hand');
-    }, 150);
+  let mcData;
+  let defaultMove;
+  let isHarvesting = false; // Track whether the bot is harvesting
+
+  bot.once("spawn", () => {
+    mcData = require("minecraft-data")(bot.version);
+    defaultMove = new Movements(bot, mcData);
+    bot.pathfinder.setMovements(defaultMove);
+
+    // Start automated farming and harvesting when the bot spawns
+    startHarvestingCrops();
   });
 
-  // Equip shield
-  bot.on('playerCollect', (collector, itemDrop) => {
-    if (collector !== bot.entity) return;
-    setTimeout(() => {
-      const shield = bot.inventory.items().find(item => item.name.includes('shield'));
-      if (shield) bot.equip(shield, 'off-hand');
-    }, 250);
-  });
+  // Harvest crops function
+  function startHarvestingCrops() {
+    setInterval(() => {
+      if (isHarvesting) return; // Don't harvest if already in the process of harvesting
 
-  let guardPos = null;
-  let patrolling = true;
-  let pointA = null;
-  let pointB = null;
-  let goingToA = false;
-
-  function guardArea (pos) {
-    stopPatrol(); // Stop patrolling when guarding
-    guardPos = pos.clone();
-    if (!bot.pvp.target) moveToGuardPos();
-  }
-
-  function stopGuarding () {
-    guardPos = null;
-    bot.pvp.stop();
-    bot.pathfinder.setGoal(null);
-    startPatrol(pointA, pointB); // Resume patrol
-  }
-
-  function moveToGuardPos () {
-    const mcData = require('minecraft-data')(bot.version);
-    bot.pathfinder.setMovements(new Movements(bot, mcData));
-    bot.pathfinder.setGoal(new goals.GoalBlock(guardPos.x, guardPos.y, guardPos.z));
-  }
-
-  function startPatrol(pos1, pos2) {
-    if (!pos1 || !pos2) return;
-    pointA = pos1.clone();
-    pointB = pos2.clone();
-    patrolling = true;
-    patrol();
-  }
-
-  function stopPatrol() {
-    patrolling = false;
-    bot.pathfinder.setGoal(null);
-  }
-
-  function patrol() {
-    if (!patrolling || !pointA || !pointB) return;
-    const destination = goingToA ? pointA : pointB;
-    goingToA = !goingToA;
-
-    const mcData = require('minecraft-data')(bot.version);
-    const movements = new Movements(bot, mcData);
-    bot.pathfinder.setMovements(movements);
-    bot.pathfinder.setGoal(new goals.GoalBlock(destination.x, destination.y, destination.z));
-
-    const checkArrival = setInterval(() => {
-      if (!bot.pathfinder.isMoving()) {
-        clearInterval(checkArrival);
-        setTimeout(() => {
-          if (patrolling) patrol();
-        }, 1000);
+      const crops = findHarvestableCrops();
+      if (crops.length > 0) {
+        const crop = crops[0]; // Pick the first available crop
+        const block = bot.blockAt(crop);
+        if (block && block.position) {
+          console.log("Attempting to harvest crop at:", block.position); // Debug log for block position
+          
+          // Check if the crop is within harvesting range (3 blocks away max)
+          if (bot.entity.position.distanceTo(block.position) <= 3) {
+            isHarvesting = true; // Set harvesting flag
+            // Ensure the block is valid before attempting to look at it
+            bot.lookAt(block.position.offset(0.5, 0.5, 0.5), false)
+              .then(() => {
+                bot.activateBlock(block); // Harvest the crop
+                console.log("Harvested crop at:", block.position); // Log harvest
+                setTimeout(() => {
+                  storeItemsInChest(); // After harvesting, store items in chest
+                }, 1000); // Wait for item to drop before storing
+              })
+              .catch((err) => {
+                console.log("Error looking at the block: " + err);
+              })
+              .finally(() => {
+                isHarvesting = false; // Reset harvesting flag after interaction
+              });
+          } else {
+            console.log("Crop is out of reach, moving closer...");
+            bot.pathfinder.goto(new goals.GoalBlock(block.position.x, block.position.y, block.position.z));
+          }
+        }
       }
-    }, 500);
+    }, 5000); // Check for harvestable crops every 5 seconds
   }
 
-  bot.on('stoppedAttacking', () => {
-    if (guardPos) moveToGuardPos();
-  });
+  // Function to find harvestable crops
+  function findHarvestableCrops() {
+    const blocks = bot.findBlocks({
+      matching: [mcData.blocksByName.wheat.id, mcData.blocksByName.carrots.id, mcData.blocksByName.potatoes.id],
+      maxDistance: 10, // Search up to 10 blocks away
+      count: 10, // Find up to 10 blocks
+    });
 
-  bot.on('physicTick', () => {
-    if (bot.pvp.target || bot.pathfinder.isMoving()) return;
+    console.log("Found blocks:", blocks);  // Debug log
 
-    const entity = bot.nearestEntity();
-    if (entity) bot.lookAt(entity.position.offset(0, entity.height, 0));
-  });
+    return blocks.filter((block) => {
+      const blockState = bot.blockAt(block);
+      if (blockState) {
+        console.log(`Block at ${block} has metadata: ${blockState.metadata}`); // Log metadata for debugging
+      }
+      return blockState && blockState.metadata === 7; // Check if the crop is fully grown (metadata 7)
+    });
+  }
 
-  bot.on('physicTick', () => {
-    if (!guardPos) return;
-    const filter = e => e.type === 'mob' && e.position.distanceTo(bot.entity.position) < 16 &&
-                        e.mobType !== 'Armor Stand';
-    const entity = bot.nearestEntity(filter);
-    if (entity) bot.pvp.attack(entity);
-  });
-
-  bot.on('chat', (username, message) => {
-    const player = bot.players[username]?.entity;
-    if (!player) return;
-
-    if (message === 'guard') {
-      bot.chat('I will!');
-      guardArea(player.position);
+  // Function to store items in the nearest chest
+  function storeItemsInChest() {
+    const chest = findNearestChest();
+    if (chest) {
+      bot.pathfinder.goto(new goals.GoalBlock(chest.position.x, chest.position.y, chest.position.z)).then(() => {
+        bot.openChest(chest).then((chestWindow) => {
+          // Insert the harvested items into the chest
+          bot.inventory.items().forEach((item) => {
+            chestWindow.deposit(item.type, null, item.count, (err) => {
+              if (err) {
+                console.log("Error depositing item: " + err);
+              }
+            });
+          });
+        }).catch((err) => {
+          console.log("Error opening chest: " + err);
+        });
+      }).catch((err) => {
+        console.log("Error moving to chest: " + err);
+      });
     }
+  }
 
-    if (message === 'stop') {
-      bot.chat('I will stop!');
-      stopGuarding();
-    }
+  // Find the nearest chest
+  function findNearestChest() {
+    const chests = bot.findBlocks({
+      matching: mcData.blocksByName.chest.id,
+      maxDistance: 10, // Search for chests up to 10 blocks away
+      count: 1, // Limit to 1 chest
+    });
 
-    if (message === 'follow me') {
-      stopPatrol();
-      const mcData = require('minecraft-data')(bot.version);
-      const movements = new Movements(bot, mcData);
-      bot.pathfinder.setMovements(movements);
-      bot.chat("Following you!");
-      bot.pathfinder.setGoal(new goals.GoalFollow(player, 1), true);
+    if (chests.length > 0) {
+      return bot.blockAt(chests[0]);
     }
+    return null;
+  }
 
-    if (message === 'stay') {
-      stopPatrol();
-      bot.chat("Okay, I'll stay here.");
-      bot.pathfinder.setGoal(null);
-    }
+  // Ensure that the bot immediately tosses any item it picks up
+  bot.on("playerCollect", (collector, itemDrop) => {
+    if (collector !== bot.entity) return;
+    // Toss the item immediately without saying anything in chat
+    bot.tossStack(itemDrop);
   });
 
-  bot.once('spawn', () => {
-    const pos1 = bot.entity.position.offset(3, 0, 0);
-    const pos2 = bot.entity.position.offset(-3, 0, 0);
-    startPatrol(pos1, pos2);
+  // Reconnect if kicked or disconnected
+  bot.on("kicked", (reason) => {
+    console.log("Bot kicked: " + reason);
+    setTimeout(createBot, 5000); // Reconnect after 5 seconds
   });
-
-  bot.on('kicked', console.log);
-  bot.on('error', console.log);
-  bot.on('end', createBot);
+  bot.on("error", (err) => {
+    console.log("Bot error: " + err);
+  });
+  bot.on("end", () => {
+    console.log("Bot disconnected. Reconnecting...");
+    setTimeout(createBot, 5000); // Reconnect after 5 seconds
+  });
 }
 
+// Start bot
 createBot();
