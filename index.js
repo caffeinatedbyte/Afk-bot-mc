@@ -5,171 +5,158 @@ const pvp = require("mineflayer-pvp").plugin;
 const { pathfinder, Movements, goals } = require("mineflayer-pathfinder");
 const armorManager = require("mineflayer-armor-manager");
 const AutoAuth = require("mineflayer-auto-auth");
-const app = express();
+const readline = require("readline");
 
+const app = express();
 app.use(express.json());
 
-// Serve a basic homepage
 app.get("/", (_, res) => res.sendFile(__dirname + "/index.html"));
 
-// Start express server
 app.listen(process.env.PORT || 3000, () => {
   console.log("Web server running.");
 });
 
-// Ping self to prevent sleeping on Replit
 setInterval(() => {
   if (process.env.PROJECT_DOMAIN) {
     http.get(`http://${process.env.PROJECT_DOMAIN}.repl.co/`);
   }
 }, 224000);
 
-// ===========================
-// BOT CREATION STARTS HERE!!
-// ===========================
+let bot;
+
 function createBot() {
-  const bot = mineflayer.createBot({
+  bot = mineflayer.createBot({
     host: "billismp.falixsrv.me",
     port: 13246,
     username: "sanx",
-    version: false, // Automatically detects version
+    version: false,
     plugins: [AutoAuth],
     AutoAuth: "sanx",
   });
 
-  // Load Plugins
   bot.loadPlugin(pvp);
   bot.loadPlugin(armorManager);
   bot.loadPlugin(pathfinder);
 
   let mcData;
   let defaultMove;
-  let isHarvesting = false; // Track whether the bot is harvesting
+  let isHarvesting = false;
 
   bot.once("spawn", () => {
     mcData = require("minecraft-data")(bot.version);
     defaultMove = new Movements(bot, mcData);
     bot.pathfinder.setMovements(defaultMove);
-
-    // Start automated farming and harvesting when the bot spawns
     startHarvestingCrops();
   });
 
-  // Harvest crops function
   function startHarvestingCrops() {
     setInterval(() => {
-      if (isHarvesting) return; // Don't harvest if already in the process of harvesting
+      if (isHarvesting || bot.inventory.full) return;
 
       const crops = findHarvestableCrops();
       if (crops.length > 0) {
-        const crop = crops[0]; // Pick the first available crop
-        const block = bot.blockAt(crop);
+        const block = bot.blockAt(crops[0]);
         if (block && block.position) {
-          console.log("Attempting to harvest crop at:", block.position); // Debug log for block position
-          
-          // Check if the crop is within harvesting range (3 blocks away max)
           if (bot.entity.position.distanceTo(block.position) <= 3) {
-            isHarvesting = true; // Set harvesting flag
-            // Ensure the block is valid before attempting to look at it
+            isHarvesting = true;
             bot.lookAt(block.position.offset(0.5, 0.5, 0.5), false)
               .then(() => {
-                bot.activateBlock(block); // Harvest the crop
-                console.log("Harvested crop at:", block.position); // Log harvest
-                setTimeout(() => {
-                  storeItemsInChest(); // After harvesting, store items in chest
-                }, 1000); // Wait for item to drop before storing
+                bot.activateBlock(block);
+                setTimeout(() => storeItemsInChest(), 1000);
               })
-              .catch((err) => {
-                console.log("Error looking at the block: " + err);
-              })
-              .finally(() => {
-                isHarvesting = false; // Reset harvesting flag after interaction
-              });
+              .catch(err => console.log("Look error:", err))
+              .finally(() => isHarvesting = false);
           } else {
-            console.log("Crop is out of reach, moving closer...");
             bot.pathfinder.goto(new goals.GoalBlock(block.position.x, block.position.y, block.position.z));
           }
         }
       }
-    }, 5000); // Check for harvestable crops every 5 seconds
+    }, 5000);
   }
 
-  // Function to find harvestable crops
   function findHarvestableCrops() {
     const blocks = bot.findBlocks({
       matching: [mcData.blocksByName.wheat.id, mcData.blocksByName.carrots.id, mcData.blocksByName.potatoes.id],
-      maxDistance: 10, // Search up to 10 blocks away
-      count: 10, // Find up to 10 blocks
+      maxDistance: 10,
+      count: 10,
     });
 
-    console.log("Found blocks:", blocks);  // Debug log
-
-    return blocks.filter((block) => {
-      const blockState = bot.blockAt(block);
-      if (blockState) {
-        console.log(`Block at ${block} has metadata: ${blockState.metadata}`); // Log metadata for debugging
-      }
-      return blockState && blockState.metadata === 7; // Check if the crop is fully grown (metadata 7)
+    return blocks.filter(block => {
+      const b = bot.blockAt(block);
+      return b && b.metadata === 7;
     });
   }
 
-  // Function to store items in the nearest chest
   function storeItemsInChest() {
     const chest = findNearestChest();
     if (chest) {
       bot.pathfinder.goto(new goals.GoalBlock(chest.position.x, chest.position.y, chest.position.z)).then(() => {
-        bot.openChest(chest).then((chestWindow) => {
-          // Insert the harvested items into the chest
-          bot.inventory.items().forEach((item) => {
-            chestWindow.deposit(item.type, null, item.count, (err) => {
-              if (err) {
-                console.log("Error depositing item: " + err);
-              }
+        bot.openChest(chest).then(chestWindow => {
+          bot.inventory.items().forEach(item => {
+            chestWindow.deposit(item.type, null, item.count, err => {
+              if (err) console.log("Deposit error:", err);
             });
           });
-        }).catch((err) => {
-          console.log("Error opening chest: " + err);
-        });
-      }).catch((err) => {
-        console.log("Error moving to chest: " + err);
-      });
+        }).catch(err => ());
+      }).catch(err => ());
     }
   }
 
-  // Find the nearest chest
   function findNearestChest() {
     const chests = bot.findBlocks({
       matching: mcData.blocksByName.chest.id,
-      maxDistance: 10, // Search for chests up to 10 blocks away
-      count: 1, // Limit to 1 chest
+      maxDistance: 10,
+      count: 1,
     });
 
-    if (chests.length > 0) {
-      return bot.blockAt(chests[0]);
-    }
-    return null;
+    return chests.length > 0 ? bot.blockAt(chests[0]) : null;
   }
 
-  // Ensure that the bot immediately tosses any item it picks up
-  bot.on("playerCollect", (collector, itemDrop) => {
-    if (collector !== bot.entity) return;
-    // Toss the item immediately without saying anything in chat
-    bot.tossStack(itemDrop);
+  // Log chat messages
+  bot.on("chat", (username, message) => {
+    if (username !== bot.username) {
+      console.log(`[${username}] ${message}`);
+    }
   });
 
-  // Reconnect if kicked or disconnected
-  bot.on("kicked", (reason) => {
-    console.log("Bot kicked: " + reason);
-    setTimeout(createBot, 5000); // Reconnect after 5 seconds
+  // Player collects item
+  bot.on("playerCollect", (collector, itemDrop) => {
+    if (collector !== bot.entity) return;
+    bot.tossStack(itemDrop).catch(() => {});
   });
-  bot.on("error", (err) => {
-    console.log("Bot error: " + err);
+
+  bot.on("kicked", reason => {
+    console.log("Bot kicked:", reason);
+    setTimeout(createBot, 5000);
   });
+
+  bot.on("error", err => console.log("Bot error:", err));
   bot.on("end", () => {
     console.log("Bot disconnected. Reconnecting...");
-    setTimeout(createBot, 5000); // Reconnect after 5 seconds
+    setTimeout(createBot, 5000);
   });
 }
 
-// Start bot
+// Start the bot
 createBot();
+
+// Console input to chat and execute commands
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+rl.on("line", (input) => {
+  if (!bot || !bot.chat) {
+    console.log("Bot not ready.");
+    return;
+  }
+
+  if (input.startsWith(".cmd ")) {
+    const command = input.slice(5);
+    bot.chat(`/${command}`);
+    console.log(`Executed command: /${command}`);
+  } else {
+    bot.chat(input);
+  }
+});
