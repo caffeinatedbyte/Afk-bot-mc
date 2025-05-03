@@ -8,29 +8,41 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
       body {
+        /* Apply the Inter font family to the body */
         font-family: 'Inter', sans-serif;
-        /* Dark background with a subtle gradient */
+        /* Apply a dark background with a subtle linear gradient */
         background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
-        color: #e2e8f0; /* Light text color for dark background */
-        animation: gradientAnimation 15s ease infinite; /* Keep the subtle animation */
+        /* Set a light text color for better contrast on the dark background */
+        color: #e2e8f0;
+        /* Apply a subtle background animation */
+        animation: gradientAnimation 15s ease infinite;
+        /* Ensure the background covers the entire area for the animation */
         background-size: 200% 200%;
       }
 
+      /* Define the keyframes for the gradient animation */
       @keyframes gradientAnimation {
+          /* Start position of the background */
           0% { background-position: 0% 50%; }
+          /* Middle position of the background */
           50% { background-position: 100% 50%; }
+          /* End position of the background (loops back to start) */
           100% { background-position: 0% 50%; }
       }
     </style>
   </head>
   <body class="flex items-center justify-center min-h-screen p-6 text-center">
     <div class="max-w-md w-full">
-      <h1 class="text-4xl font-extrabold text-white mb-6">My Mineflayer Bot</h1>
+      <h1 class="text-4xl font-extrabold text-white mb-6">
+        My Mineflayer Bot
+      </h1>
       <p class="text-gray-300 text-xl mb-8 leading-relaxed">
         This page confirms the bot's web server is operational.
         My bot connects to a Minecraft server, explores the world by wandering, and expresses excitement by jumping when players are nearby.
       </p>
-      <p class="text-gray-200 font-bold text-2xl">Thanks for stopping by!</p>
+      <p class="text-gray-200 font-bold text-2xl">
+        Thanks for stopping by!
+      </p>
       <svg class="mx-auto mt-8 w-20 h-20 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
       </svg>
