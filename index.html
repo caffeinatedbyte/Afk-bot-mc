@@ -1,14 +1,39 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
   <head>
-    <title>Thanks you for using my bot!</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Mineflayer Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        /* Dark background with a subtle gradient */
+        background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+        color: #e2e8f0; /* Light text color for dark background */
+        animation: gradientAnimation 15s ease infinite; /* Keep the subtle animation */
+        background-size: 200% 200%;
+      }
+
+      @keyframes gradientAnimation {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+      }
+    </style>
   </head>
-  <body>
-    <p>Remember to suscribe to my channel!! 
-      Join our discord community!
-      
-                                                          
-                Thx u so much for using the bot!
-				<img src="https://media.discordapp.net/attachments/883312605681315841/1057124817251336303/widget.png?style=banner3" alt="Discord Banner 3"/></p>
+  <body class="flex items-center justify-center min-h-screen p-6 text-center">
+    <div class="max-w-md w-full">
+      <h1 class="text-4xl font-extrabold text-white mb-6">My Mineflayer Bot</h1>
+      <p class="text-gray-300 text-xl mb-8 leading-relaxed">
+        This page confirms the bot's web server is operational.
+        My bot connects to a Minecraft server, explores the world by wandering, and expresses excitement by jumping when players are nearby.
+      </p>
+      <p class="text-gray-200 font-bold text-2xl">Thanks for stopping by!</p>
+      <svg class="mx-auto mt-8 w-20 h-20 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+      </svg>
+    </div>
   </body>
 </html>
