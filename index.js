@@ -19,7 +19,8 @@ const SERVER_PORT = parseInt(process.env.MC_SERVER_PORT) || 13246;
 // Defaults to using the username if no password env var is set.
 const AUTO_AUTH_PASSWORD = process.env.MC_PASSWORD || BOT_USERNAME;
 
-const RECONNECT_DELAY = parseInt(process.env.RECONNECT_DELAY) || 5000; // ms
+// Increased reconnection delay to be less aggressive
+const RECONNECT_DELAY = parseInt(process.env.RECONNECT_DELAY) || 60000; // ms (Increased to 1 minute)
 const WANDER_INTERVAL = parseInt(process.env.WANDER_INTERVAL) || 10000; // ms
 const PATH_STOP_DELAY_TICKS = parseInt(process.env.PATH_STOP_DELAY_TICKS) || 10; // ticks
 const RANDOM_MOVE_TICKS = parseInt(process.env.RANDOM_MOVE_TICKS) || 40; // ticks
